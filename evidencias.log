@@ -51,3 +51,71 @@ $ make clean
 rm -f vm main.o
 
 Validado: 6 casos de erro retornam codigo 1 com mensagem em stderr; 2 combinacoes validas retornam 0; make gera vm e make clean remove vm e main.o.
+
+=== Instrucao 2: validacao do arquivo de enderecos ===
+Objetivo: encerrar com erro coerente se o arquivo nao existir, nao puder ser aberto ou estiver fora do formato (um inteiro de 0 a 65535 por linha).
+
+$ make
+gcc -Wall -Wextra -c main.c
+gcc -Wall -Wextra -o vm main.o
+
+-- arquivo inexistente / nao abre --
+$ ./vm nao_existe.txt lru fifo
+Erro: nao foi possivel abrir o arquivo de enderecos 'nao_existe.txt'
+(codigo de saida: 1)
+
+$ ./vm /tmp/sem_permissao.txt lru fifo
+Erro: nao foi possivel abrir o arquivo de enderecos '/tmp/sem_permissao.txt'
+(codigo de saida: 1)
+
+-- formatacao diferente --
+(conteudo de /tmp/letras.txt: 100 / abc)
+$ ./vm /tmp/letras.txt lru fifo
+Erro: linha 2 de '/tmp/letras.txt' fora do formato (esperado um inteiro de 0 a 65535)
+(codigo de saida: 1)
+
+(conteudo de /tmp/fora_faixa.txt: 100 / 70000)
+$ ./vm /tmp/fora_faixa.txt lru fifo
+Erro: linha 2 de '/tmp/fora_faixa.txt' fora do formato (esperado um inteiro de 0 a 65535)
+(codigo de saida: 1)
+
+(conteudo de /tmp/negativo.txt: 100 / -5)
+$ ./vm /tmp/negativo.txt lru fifo
+Erro: linha 2 de '/tmp/negativo.txt' fora do formato (esperado um inteiro de 0 a 65535)
+(codigo de saida: 1)
+
+(conteudo de /tmp/duas_colunas.txt: 100 200)
+$ ./vm /tmp/duas_colunas.txt lru fifo
+Erro: linha 1 de '/tmp/duas_colunas.txt' fora do formato (esperado um inteiro de 0 a 65535)
+(codigo de saida: 1)
+
+(conteudo de /tmp/linha_branco.txt: 100 / linha em branco / 200)
+$ ./vm /tmp/linha_branco.txt lru fifo
+Erro: linha 2 de '/tmp/linha_branco.txt' fora do formato (esperado um inteiro de 0 a 65535)
+(codigo de saida: 1)
+
+(/tmp/vazio.txt: arquivo vazio)
+$ ./vm /tmp/vazio.txt lru fifo
+Erro: o arquivo '/tmp/vazio.txt' nao contem enderecos
+(codigo de saida: 1)
+
+-- arquivo valido (addresses.txt do professor, 1000 enderecos) --
+$ ./vm /mnt/c/Users/nonon/Downloads/addresses.txt lru fifo
+(codigo de saida: 0)
+
+$ ./vm /mnt/c/Users/nonon/Downloads/addresses.txt fifo lru
+(codigo de saida: 0)
+
+(conteudo de /tmp/limites.txt: 0 / 65535)
+$ ./vm /tmp/limites.txt lru fifo
+(codigo de saida: 0)
+
+-- erro de argumento continua valendo antes do arquivo --
+$ ./vm /mnt/c/Users/nonon/Downloads/addresses.txt lfu fifo
+Erro: algoritmo de substituicao de pagina deve ser fifo ou lru
+(codigo de saida: 1)
+
+$ make clean
+rm -f vm main.o
+
+Validado: arquivo inexistente, sem permissao, linha nao numerica, fora de 0-65535, negativo, duas colunas, linha em branco e arquivo vazio retornam codigo 1 com mensagem; addresses.txt do professor e os limites 0 e 65535 retornam 0.
