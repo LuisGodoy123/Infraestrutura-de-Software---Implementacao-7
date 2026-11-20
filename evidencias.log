@@ -1,0 +1,53 @@
+Evidencias - Implementacao 6 (Memoria Virtual)
+Ambiente: Windows 11, compilado e testado via WSL Ubuntu (gcc/make)
+
+=== Instrucao 1: Makefile e validacao dos argumentos ===
+Objetivo: make gera o executavel vm; erro coerente quando o numero ou o tipo dos argumentos estiver incorreto.
+
+$ make
+gcc -Wall -Wextra -c main.c
+gcc -Wall -Wextra -o vm main.o
+
+$ ls vm
+vm
+
+-- numero de argumentos incorreto --
+$ ./vm 
+Erro: numero de argumentos incorreto
+Uso: ./vm <arquivo_enderecos> <fifo|lru> <fifo|lru>
+(codigo de saida: 1)
+
+$ ./vm addresses.txt lru
+Erro: numero de argumentos incorreto
+Uso: ./vm <arquivo_enderecos> <fifo|lru> <fifo|lru>
+(codigo de saida: 1)
+
+$ ./vm addresses.txt lru fifo extra
+Erro: numero de argumentos incorreto
+Uso: ./vm <arquivo_enderecos> <fifo|lru> <fifo|lru>
+(codigo de saida: 1)
+
+-- tipo de argumento incorreto --
+$ ./vm addresses.txt lfu fifo
+Erro: algoritmo de substituicao de pagina deve ser fifo ou lru
+(codigo de saida: 1)
+
+$ ./vm addresses.txt lru clock
+Erro: algoritmo de substituicao da TLB deve ser fifo ou lru
+(codigo de saida: 1)
+
+$ ./vm addresses.txt LRU fifo
+Erro: algoritmo de substituicao de pagina deve ser fifo ou lru
+(codigo de saida: 1)
+
+-- argumentos corretos --
+$ ./vm addresses.txt lru fifo
+(codigo de saida: 0)
+
+$ ./vm addresses.txt fifo lru
+(codigo de saida: 0)
+
+$ make clean
+rm -f vm main.o
+
+Validado: 6 casos de erro retornam codigo 1 com mensagem em stderr; 2 combinacoes validas retornam 0; make gera vm e make clean remove vm e main.o.
