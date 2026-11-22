@@ -6,12 +6,14 @@
 #define MAX_ADDRESS 65535
 #define PAGE_SIZE 256
 #define NUM_PAGES 256
-#define NUM_FRAMES 256
+#define NUM_FRAMES 128
 #define BACKING_STORE_FILE "BACKING_STORE.bin"
 
 static signed char memory[NUM_FRAMES * PAGE_SIZE];
 static int page_table[NUM_PAGES];
+static int frame_page[NUM_FRAMES];
 static int next_frame;
+static int fifo_next;
 static FILE *backing_store;
 
 static int valid_algorithm(const char *s)
@@ -72,15 +74,30 @@ static int load_page(int page, int frame)
     return fread(&memory[frame * PAGE_SIZE], 1, PAGE_SIZE, backing_store) == PAGE_SIZE;
 }
 
+static int select_frame(void)
+{
+    int frame;
+
+    if (next_frame < NUM_FRAMES)
+        return next_frame++;
+    frame = fifo_next;
+    fifo_next = (fifo_next + 1) % NUM_FRAMES;
+    page_table[frame_page[frame]] = -1;
+    return frame;
+}
+
 static int translate_address(long address, int *physical, signed char *value)
 {
     int page = address / PAGE_SIZE;
     int offset = address % PAGE_SIZE;
+    int frame;
 
     if (page_table[page] == -1) {
-        if (!load_page(page, next_frame))
+        frame = select_frame();
+        if (!load_page(page, frame))
             return 0;
-        page_table[page] = next_frame++;
+        page_table[page] = frame;
+        frame_page[frame] = page;
     }
     *physical = page_table[page] * PAGE_SIZE + offset;
     *value = memory[*physical];

@@ -170,3 +170,36 @@ $ cd Infraestrutura-de-Software---Implementacao-7 && make clean
 rm -f vm main.o
 
 Validado: enderecos virtuais e valores das 1000 linhas identicos a referencia; enderecos fisicos identicos ate a primeira substituicao da referencia (a partir dai o vm de 256 frames nao substitui, entao diverge, como esperado).
+
+=== Instrucao 4: 128 frames e substituicao FIFO da tabela de paginas ===
+Objetivo: memoria fisica com 128 frames preenchidos de 0 a 127; com a memoria cheia, o frame substituido e o da pagina mais antiga (FIFO) e a entrada dela na tabela de paginas e invalidada.
+Obs: o parametro de pagina 'lru' ja e aceito na validacao, mas a substituicao ainda e sempre FIFO (LRU entra na Instrucao 5).
+Obs: como a referencia do professor usa LRU, a verificacao do FIFO e feita contra uma simulacao independente (simfifo.py, fora do repositorio), que reimplementa FIFO e le o valor direto do BACKING_STORE.bin.
+
+$ cd Infraestrutura-de-Software---Implementacao-7 && make
+gcc -Wall -Wextra -c main.c
+gcc -Wall -Wextra -o vm main.o
+
+-- Enderecos do professor (addresses.txt) com ./vm addresses.txt fifo fifo --
+(codigo de saida: 0; linhas: 1000)
+$ cmp saida_do_vm saida_da_simulacao_fifo -> codigo 0 (0 = identicas nas 1000 linhas: enderecos virtuais, fisicos e valores)
+page faults FIFO segundo a simulacao: 538 (referencia LRU do professor: 539)
+linhas com endereco fisico igual a referencia LRU: 237 de 1000
+Virtual+Value iguais a referencia: 0 linhas diferentes
+$ ./vm addresses.txt lru fifo gera a mesma saida de fifo fifo (LRU ainda nao implementado) -> cmp codigo 0
+
+-- Estresse: 3 voltas sequenciais por todas as 256 paginas (forca substituicoes em toda volta) --
+$ ./vm estresse1.txt fifo fifo (768 enderecos) (codigo de saida: 0)
+cmp com simulacao -> codigo 0; page faults: 768 (esperado 768: acesso sequencial ciclico maior que a memoria faz FIFO errar sempre)
+
+-- Estresse: enderecos aleatorios (3000) --
+$ ./vm estresse2.txt fifo fifo (3000 enderecos) (codigo de saida: 0)
+cmp com simulacao -> codigo 0; page faults: 1538
+
+-- Estresse: so 128 paginas distintas (cabem na memoria: nenhuma substituicao) --
+$ ./vm cabe.txt fifo fifo (256 enderecos) -> cmp com simulacao codigo 0; page faults: 128 (esperado 128)
+
+$ cd Infraestrutura-de-Software---Implementacao-7 && make clean
+rm -f vm main.o
+
+Validado: com 128 frames o vm com FIFO produz exatamente a saida da simulacao independente em 4 conjuntos de enderecos; Virtual e Value seguem identicos a referencia do professor.
