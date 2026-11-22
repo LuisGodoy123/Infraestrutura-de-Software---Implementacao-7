@@ -119,3 +119,54 @@ $ make clean
 rm -f vm main.o
 
 Validado: arquivo inexistente, sem permissao, linha nao numerica, fora de 0-65535, negativo, duas colunas, linha em branco e arquivo vazio retornam codigo 1 com mensagem; addresses.txt do professor e os limites 0 e 65535 retornam 0.
+
+=== Instrucao 3: traducao sem TLB, tabela de paginas com 256 frames ===
+Objetivo: decompor endereco em pagina/offset, carregar a pagina do BACKING_STORE.bin no primeiro frame livre (page fault) e devolver endereco fisico e valor (signed char).
+Obs: o BACKING_STORE.bin fica fora do repositorio (em Desktop/lagi); os testes rodam a partir desse diretorio, onde o programa o encontra pelo nome.
+Obs: nesta etapa o programa imprime na tela Virtual/Physical/Value; o correct.txt (com coluna TLB e estatisticas) entra em instrucao posterior.
+
+$ cd Infraestrutura-de-Software---Implementacao-7 && make
+gcc -Wall -Wextra -c main.c
+gcc -Wall -Wextra -o vm main.o
+
+$ ls -l BACKING_STORE.bin
+65536 BACKING_STORE.bin
+
+$ ./Infraestrutura-de-Software---Implementacao-7/vm addresses.txt lru fifo   (primeiras 5 linhas)
+(codigo de saida: 0)
+Virtual address: 16916 Physical address: 20 Value: 0
+Virtual address: 62493 Physical address: 285 Value: 0
+Virtual address: 30198 Physical address: 758 Value: 29
+Virtual address: 53683 Physical address: 947 Value: 108
+Virtual address: 40185 Physical address: 1273 Value: 0
+
+Linhas impressas: 1000 (esperado 1000)
+
+-- Comparacao com o correct.txt de referencia (lru/fifo, 128 frames) --
+Referencia lida do Downloads: 1000 linhas de traducao
+Enderecos virtuais e Value (todas as 1000 linhas):
+$ diff <(Virtual+Value do vm) <(Virtual+Value da referencia) -> codigo 0, 0 linhas diferentes
+
+Enderecos fisicos (referencia tem 128 frames, entao so devem coincidir ate a primeira substituicao):
+primeira linha com endereco fisico diferente: 172
+linha da 129a pagina distinta (primeiro page fault com memoria cheia na referencia): 172
+linhas 1 a 171 com endereco fisico identico a referencia
+
+-- Cada pagina so e carregada uma vez (sem page fault repetido) --
+paginas distintas no arquivo: 244
+maior frame usado + 1: 244
+
+-- BACKING_STORE.bin ausente (rodando de dentro do repositorio) --
+$ cd Infraestrutura-de-Software---Implementacao-7 && ./vm /mnt/c/Users/nonon/Downloads/addresses.txt lru fifo
+Erro: nao foi possivel abrir 'BACKING_STORE.bin'
+(codigo de saida: 1)
+
+-- erros anteriores continuam valendo --
+$ ./Infraestrutura-de-Software---Implementacao-7/vm addresses.txt lfu fifo
+Erro: algoritmo de substituicao de pagina deve ser fifo ou lru
+(codigo de saida: 1)
+
+$ cd Infraestrutura-de-Software---Implementacao-7 && make clean
+rm -f vm main.o
+
+Validado: enderecos virtuais e valores das 1000 linhas identicos a referencia; enderecos fisicos identicos ate a primeira substituicao da referencia (a partir dai o vm de 256 frames nao substitui, entao diverge, como esperado).
