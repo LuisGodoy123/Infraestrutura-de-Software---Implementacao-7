@@ -203,3 +203,40 @@ $ cd Infraestrutura-de-Software---Implementacao-7 && make clean
 rm -f vm main.o
 
 Validado: com 128 frames o vm com FIFO produz exatamente a saida da simulacao independente em 4 conjuntos de enderecos; Virtual e Value seguem identicos a referencia do professor.
+
+=== Instrucao 5: substituicao LRU da tabela de paginas ===
+Objetivo: com a memoria cheia, o 2o argumento (fifo|lru) escolhe a vitima: fifo = frame carregado ha mais tempo; lru = frame cujo ultimo acesso (hit ou page fault) e o mais antigo.
+Obs: a referencia do professor (correct.txt, lru na pagina) tem a coluna 'TLB: N'; como a TLB ainda nao existe, essa coluna e removida da referencia antes da comparacao (sed), e so Virtual/Physical/Value sao comparados.
+Obs: simvm.py e uma simulacao independente (fora do repositorio) de FIFO e LRU, usada para conferir saidas e contagem de page faults.
+
+$ cd Infraestrutura-de-Software---Implementacao-7 && make
+gcc -Wall -Wextra -c main.c
+gcc -Wall -Wextra -o vm main.o
+
+-- LRU contra o correct.txt do professor --
+$ ./vm addresses.txt lru fifo (codigo de saida: 0; linhas: 1000)
+$ cmp saida_do_vm referencia_sem_coluna_TLB -> codigo 0 (0 = identicas nas 1000 linhas: virtual, fisico e valor)
+$ cmp saida_do_vm simulacao_lru -> codigo 0; page faults LRU na simulacao: 539 (referencia do professor: 539)
+
+-- FIFO continua igual (regressao da Instrucao 4) --
+$ ./vm addresses.txt fifo fifo -> cmp com simulacao fifo codigo 0; page faults: 538
+saida fifo e saida lru diferem no mesmo addresses.txt -> cmp codigo 1 (1 = diferem); linhas com endereco fisico diferente: 763
+O 3o argumento (TLB) ainda nao tem efeito: ./vm addresses.txt lru lru -> mesma saida de lru fifo
+
+-- Comparacao FIFO vs LRU em varios padroes de acesso (vm contra simulacao) --
+padrao         enderecos faults vm  faults sim cmp fifo     cmp lru     
+e5_ciclico     768       fifo=768   lru=768    codigo 0     codigo 0    
+e5_aleatorio   3000      fifo=1538  lru=1530   codigo 0     codigo 0    
+e5_hot         2816      fifo=276   lru=256    codigo 0     codigo 0    
+e5_cabe        256       fifo=128   lru=128    codigo 0     codigo 0    
+(faults vm = contagem da simulacao, pois o vm ainda nao imprime estatisticas; cmp codigo 0 = saida do vm identica a simulacao)
+
+-- erros anteriores continuam valendo --
+$ ./vm addresses.txt lru clock
+Erro: algoritmo de substituicao da TLB deve ser fifo ou lru
+(codigo de saida: 1)
+
+$ cd Infraestrutura-de-Software---Implementacao-7 && make clean
+rm -f vm main.o
+
+Validado: ./vm addresses.txt lru fifo reproduz as 1000 linhas do correct.txt do professor (sem a coluna TLB) e o numero de page faults da referencia; FIFO e LRU conferem com a simulacao independente em todos os padroes testados.

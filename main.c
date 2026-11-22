@@ -12,8 +12,11 @@
 static signed char memory[NUM_FRAMES * PAGE_SIZE];
 static int page_table[NUM_PAGES];
 static int frame_page[NUM_FRAMES];
+static unsigned long frame_used[NUM_FRAMES];
+static unsigned long tick;
 static int next_frame;
 static int fifo_next;
+static int use_lru;
 static FILE *backing_store;
 
 static int valid_algorithm(const char *s)
@@ -74,14 +77,28 @@ static int load_page(int page, int frame)
     return fread(&memory[frame * PAGE_SIZE], 1, PAGE_SIZE, backing_store) == PAGE_SIZE;
 }
 
+static int lru_frame(void)
+{
+    int frame, victim = 0;
+
+    for (frame = 1; frame < NUM_FRAMES; frame++)
+        if (frame_used[frame] < frame_used[victim])
+            victim = frame;
+    return victim;
+}
+
 static int select_frame(void)
 {
     int frame;
 
     if (next_frame < NUM_FRAMES)
         return next_frame++;
-    frame = fifo_next;
-    fifo_next = (fifo_next + 1) % NUM_FRAMES;
+    if (use_lru) {
+        frame = lru_frame();
+    } else {
+        frame = fifo_next;
+        fifo_next = (fifo_next + 1) % NUM_FRAMES;
+    }
     page_table[frame_page[frame]] = -1;
     return frame;
 }
@@ -99,6 +116,7 @@ static int translate_address(long address, int *physical, signed char *value)
         page_table[page] = frame;
         frame_page[frame] = page;
     }
+    frame_used[page_table[page]] = ++tick;
     *physical = page_table[page] * PAGE_SIZE + offset;
     *value = memory[*physical];
     return 1;
@@ -132,6 +150,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "Erro: nao foi possivel abrir '%s'\n", BACKING_STORE_FILE);
         return 1;
     }
+    use_lru = strcmp(argv[2], "lru") == 0;
     for (i = 0; i < NUM_PAGES; i++)
         page_table[i] = -1;
     f = fopen(argv[1], "r");
