@@ -500,3 +500,41 @@ Erro: nao foi possivel abrir 'BACKING_STORE.bin'
 $ git ls-files -o -c --exclude-standard: Makefile README.md evidencias.log main.c 
 
 Validado: o README cita exatamente as funcoes de main.c e todos os comandos dele (make, ./vm, cmp, make clean e os casos de erro) funcionam em um diretorio limpo.
+
+=== Instrucao 10: pasta tests/ com os arquivos do professor ===
+Objetivo: guardar no repositorio os dois arquivos de teste usados em todas as etapas: tests/addresses.txt (entrada) e tests/correct_professor.txt (saida de referencia do professor, lru na pagina e fifo na TLB; nome diferente de correct.txt para nao ser sobrescrito pela saida do vm).
+Obs: o BACKING_STORE.bin continua fora do repositorio. O correct_professor.txt usa fim de linha LF; o Git deste ambiente tem core.autocrlf=true, entao um clone novo no Windows converteria para CRLF (sera tratado com .gitattributes em instrucao propria).
+
+-- Copias identicas as originais (sha256) --
+tests/addresses.txt = 0d4629652a7945b0...  Downloads/addresses.txt = 0d4629652a7945b0...  -> identicos (5831 bytes)
+tests/correct_professor.txt = 05574ab43f7834a4...  Downloads/correct.txt = 05574ab43f7834a4...  -> identicos (63577 bytes)
+
+-- Conteudo --
+addresses.txt: 1000 linhas, todas nao vazias (a ultima, '12107 ', tem um espaco depois do numero, que o vm aceita)
+correct_professor.txt: 1005 linhas = 1000 traducoes + 5 de estatisticas
+bytes CR (\r) nos dois arquivos: 0
+enderecos de addresses.txt = coluna Virtual do correct_professor.txt: 0 diferencas (par coerente)
+ultimas linhas do correct_professor.txt:
+Number of Translated Addresses = 1000
+Page Faults = 539
+Page Fault Rate = 0.539
+TLB Hits = 54
+TLB Hit Rate = 0.054
+
+-- Uso dos arquivos de tests/ com o vm (a partir de Desktop/lagi, onde esta o BACKING_STORE.bin) --
+gcc -Wall -Wextra -pthread -c main.c
+gcc -Wall -Wextra -pthread -o vm main.o
+$ ./Infraestrutura-de-Software---Implementacao-7/vm Infraestrutura-de-Software---Implementacao-7/tests/addresses.txt lru fifo
+(codigo de saida: 0)
+$ cmp correct.txt Infraestrutura-de-Software---Implementacao-7/tests/correct_professor.txt -> codigo 0 (0 = identicos)
+
+-- Os fixtures distinguem combinacoes (so lru/fifo deve bater) --
+./vm tests/addresses.txt fifo fifo -> cmp codigo 1; linhas diferentes da referencia: 765
+./vm tests/addresses.txt fifo lru -> cmp codigo 1; linhas diferentes da referencia: 918
+./vm tests/addresses.txt lru fifo -> cmp codigo 0; linhas diferentes da referencia: 0
+./vm tests/addresses.txt lru lru -> cmp codigo 1; linhas diferentes da referencia: 857
+
+$ cd Infraestrutura-de-Software---Implementacao-7 && make clean
+rm -f vm main.o
+
+Validado: tests/ tem copias byte a byte dos arquivos do professor e, com elas, ./vm tests/addresses.txt lru fifo reproduz tests/correct_professor.txt exatamente; as outras tres combinacoes diferem, entao o fixture realmente confere o caso lru/fifo.
