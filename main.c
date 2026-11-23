@@ -7,7 +7,9 @@
 #define PAGE_SIZE 256
 #define NUM_PAGES 256
 #define NUM_FRAMES 128
+#define TLB_SIZE 16
 #define BACKING_STORE_FILE "BACKING_STORE.bin"
+#define OUTPUT_FILE "correct.txt"
 
 static signed char memory[NUM_FRAMES * PAGE_SIZE];
 static int page_table[NUM_PAGES];
@@ -17,6 +19,11 @@ static unsigned long tick;
 static int next_frame;
 static int fifo_next;
 static int use_lru;
+static int tlb_page[TLB_SIZE];
+static int tlb_frame[TLB_SIZE];
+static int tlb_next;
+static long page_faults;
+static long tlb_hits;
 static FILE *backing_store;
 
 static int valid_algorithm(const char *s)
@@ -89,7 +96,7 @@ static int lru_frame(void)
 
 static int select_frame(void)
 {
-    int frame;
+    int frame, i;
 
     if (next_frame < NUM_FRAMES)
         return next_frame++;
@@ -100,34 +107,67 @@ static int select_frame(void)
         fifo_next = (fifo_next + 1) % NUM_FRAMES;
     }
     page_table[frame_page[frame]] = -1;
+    for (i = 0; i < TLB_SIZE; i++)
+        if (tlb_page[i] == frame_page[frame])
+            tlb_page[i] = -1;
     return frame;
 }
 
-static int translate_address(long address, int *physical, signed char *value)
+static int tlb_lookup(int page)
+{
+    int i;
+
+    for (i = 0; i < TLB_SIZE; i++)
+        if (tlb_page[i] == page)
+            return i;
+    return -1;
+}
+
+static int tlb_insert(int page, int frame)
+{
+    int slot = tlb_next;
+
+    tlb_next = (tlb_next + 1) % TLB_SIZE;
+    tlb_page[slot] = page;
+    tlb_frame[slot] = frame;
+    return slot;
+}
+
+static int translate_address(long address, int *tlb_slot, int *physical, signed char *value)
 {
     int page = address / PAGE_SIZE;
     int offset = address % PAGE_SIZE;
-    int frame;
+    int frame, slot;
 
-    if (page_table[page] == -1) {
-        frame = select_frame();
-        if (!load_page(page, frame))
-            return 0;
-        page_table[page] = frame;
-        frame_page[frame] = page;
+    slot = tlb_lookup(page);
+    if (slot >= 0) {
+        tlb_hits++;
+        frame = tlb_frame[slot];
+    } else {
+        if (page_table[page] == -1) {
+            page_faults++;
+            frame = select_frame();
+            if (!load_page(page, frame))
+                return 0;
+            page_table[page] = frame;
+            frame_page[frame] = page;
+        }
+        frame = page_table[page];
+        slot = tlb_insert(page, frame);
     }
-    frame_used[page_table[page]] = ++tick;
-    *physical = page_table[page] * PAGE_SIZE + offset;
+    frame_used[frame] = ++tick;
+    *tlb_slot = slot;
+    *physical = frame * PAGE_SIZE + offset;
     *value = memory[*physical];
     return 1;
 }
 
 int main(int argc, char **argv)
 {
-    FILE *f;
+    FILE *f, *out;
     char line[64];
-    long address;
-    int physical, i;
+    long address, total = 0;
+    int physical, slot, i;
     signed char value;
 
     if (argc != 4) {
@@ -153,15 +193,30 @@ int main(int argc, char **argv)
     use_lru = strcmp(argv[2], "lru") == 0;
     for (i = 0; i < NUM_PAGES; i++)
         page_table[i] = -1;
+    for (i = 0; i < TLB_SIZE; i++)
+        tlb_page[i] = -1;
+    out = fopen(OUTPUT_FILE, "w");
+    if (out == NULL) {
+        fprintf(stderr, "Erro: nao foi possivel criar '%s'\n", OUTPUT_FILE);
+        return 1;
+    }
     f = fopen(argv[1], "r");
     while (fgets(line, sizeof line, f) != NULL) {
         parse_address(line, &address);
-        if (!translate_address(address, &physical, &value)) {
+        if (!translate_address(address, &slot, &physical, &value)) {
             fprintf(stderr, "Erro: falha ao ler '%s'\n", BACKING_STORE_FILE);
             return 1;
         }
-        printf("Virtual address: %ld Physical address: %d Value: %d\n", address, physical, value);
+        fprintf(out, "Virtual address: %ld TLB: %d Physical address: %d Value: %d\n",
+                address, slot, physical, value);
+        total++;
     }
+    fprintf(out, "Number of Translated Addresses = %ld\n", total);
+    fprintf(out, "Page Faults = %ld\n", page_faults);
+    fprintf(out, "Page Fault Rate = %.3f\n", (double)page_faults / total);
+    fprintf(out, "TLB Hits = %ld\n", tlb_hits);
+    fprintf(out, "TLB Hit Rate = %.3f\n", (double)tlb_hits / total);
+    fclose(out);
     fclose(f);
     fclose(backing_store);
     return 0;

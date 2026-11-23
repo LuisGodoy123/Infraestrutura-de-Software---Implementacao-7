@@ -240,3 +240,61 @@ $ cd Infraestrutura-de-Software---Implementacao-7 && make clean
 rm -f vm main.o
 
 Validado: ./vm addresses.txt lru fifo reproduz as 1000 linhas do correct.txt do professor (sem a coluna TLB) e o numero de page faults da referencia; FIFO e LRU conferem com a simulacao independente em todos os padroes testados.
+
+=== Instrucao 6: TLB de 16 entradas, busca sequencial, substituicao FIFO, e saida correct.txt ===
+Objetivo: consultar a TLB antes da tabela de paginas; em miss, inserir a pagina no slot FIFO (0 a 15, circular) e a coluna 'TLB:' recebe o indice do slot em que a entrada ficou (hit ou insercao). O programa passa a gravar correct.txt no formato do PDF, com as estatisticas.
+Obs: o 3o argumento (algoritmo da TLB) e validado mas a substituicao da TLB ainda e sempre FIFO (LRU entra na Instrucao 7).
+Obs: quando uma pagina e removida da memoria, a entrada dela na TLB e invalidada (senao um hit usaria um frame ja reaproveitado).
+Obs: os testes rodam a partir de Desktop/lagi (onde esta o BACKING_STORE.bin), e o correct.txt tambem e gravado la, fora do repositorio. simfull.py e uma simulacao independente completa (pagina + TLB), tambem fora do repositorio.
+
+$ cd Infraestrutura-de-Software---Implementacao-7 && make
+gcc -Wall -Wextra -c main.c
+gcc -Wall -Wextra -o vm main.o
+
+-- Erros nao criam correct.txt --
+$ ./vm  -> codigo 1, correct.txt ausente
+$ ./vm /mnt/c/Users/nonon/Downloads/addresses.txt lru -> codigo 1, correct.txt ausente
+$ ./vm /mnt/c/Users/nonon/Downloads/addresses.txt lfu fifo -> codigo 1, correct.txt ausente
+$ ./vm /mnt/c/Users/nonon/Downloads/addresses.txt lru clock -> codigo 1, correct.txt ausente
+$ ./vm nao_existe.txt lru fifo -> codigo 1, correct.txt ausente
+$ ./vm ruim.txt lru fifo (linha 'abc') -> codigo 1, correct.txt ausente
+
+-- Referencia do professor: ./vm addresses.txt lru fifo contra correct.txt do professor --
+$ ./vm addresses.txt lru fifo (codigo de saida: 0)
+linhas do correct.txt gerado: 1005 (referencia: 1005)
+$ cmp correct.txt_gerado correct.txt_do_professor -> codigo 0 (0 = arquivos identicos byte a byte, incluindo coluna TLB e estatisticas)
+coluna TLB (1000 linhas) diferente da referencia: 0 linhas
+ultimas 5 linhas do correct.txt gerado:
+Number of Translated Addresses = 1000
+Page Faults = 539
+Page Fault Rate = 0.539
+TLB Hits = 54
+TLB Hit Rate = 0.054
+
+-- Conferencia com simulacao independente (pagina x TLB FIFO) --
+padrao        pag   enderecos faults  hits    cmp com sim 
+e6_addresses  fifo  1000      538     54      codigo 0    
+e6_addresses  lru   1000      539     54      codigo 0    
+e6_ciclico    fifo  768       768     0       codigo 0    
+e6_ciclico    lru   768       768     0       codigo 0    
+e6_aleatorio  fifo  3000      1538    202     codigo 0    
+e6_aleatorio  lru   3000      1530    203     codigo 0    
+e6_hot        fifo  2816      276     2210    codigo 0    
+e6_hot        lru   2816      256     2210    codigo 0    
+e6_cabe       fifo  256       128     0       codigo 0    
+e6_cabe       lru   256       128     0       codigo 0    
+e6_200pag     fifo  3000      1155    218     codigo 0    
+e6_200pag     lru   3000      1200    222     codigo 0    
+(faults e hits lidos do correct.txt gerado pelo vm; cmp codigo 0 = correct.txt identico ao da simulacao)
+
+-- Por que invalidar a TLB quando a pagina sai da memoria (padrao aleatorio, pagina fifo) --
+entradas da TLB invalidadas nesse teste: 74
+linhas que mudariam sem a invalidacao (hit com frame ja reaproveitado): 1441
+
+-- 3o argumento ainda sem efeito --
+$ ./vm addresses.txt lru lru -> correct.txt identico ao de lru fifo: codigo 0
+
+$ cd Infraestrutura-de-Software---Implementacao-7 && make clean
+rm -f vm main.o
+
+Validado: ./vm addresses.txt lru fifo gera correct.txt identico ao do professor (1000 linhas, coluna TLB, 539 page faults, 54 TLB hits); FIFO e LRU de pagina com TLB FIFO conferem com a simulacao independente em 6 padroes; erros nao criam correct.txt.
