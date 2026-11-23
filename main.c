@@ -4,269 +4,269 @@
 #include <ctype.h>
 #include <pthread.h>
 
-#define MAX_ADDRESS 65535
-#define PAGE_SIZE 256
-#define NUM_PAGES 256
+#define ENDERECO_MAXIMO 65535
+#define TAMANHO_PAGINA 256
+#define NUM_PAGINAS 256
 #define NUM_FRAMES 128
-#define TLB_SIZE 16
-#define BACKING_STORE_FILE "BACKING_STORE.bin"
-#define OUTPUT_FILE "correct.txt"
+#define TAMANHO_TLB 16
+#define ARQUIVO_BACKING_STORE "BACKING_STORE.bin"
+#define ARQUIVO_SAIDA "correct.txt"
 
-static signed char memory[NUM_FRAMES * PAGE_SIZE];
-static int page_table[NUM_PAGES];
-static int frame_page[NUM_FRAMES];
-static unsigned long frame_used[NUM_FRAMES];
-static unsigned long tick;
-static int next_frame;
-static int fifo_next;
-static int use_lru;
-static int tlb_page[TLB_SIZE];
-static int tlb_frame[TLB_SIZE];
-static unsigned long tlb_used[TLB_SIZE];
-static int tlb_match[TLB_SIZE];
-static int tlb_next;
-static int use_tlb_lru;
+static signed char memoria[NUM_FRAMES * TAMANHO_PAGINA];
+static int tabela_paginas[NUM_PAGINAS];
+static int pagina_do_frame[NUM_FRAMES];
+static unsigned long uso_frame[NUM_FRAMES];
+static unsigned long relogio;
+static int proximo_frame_livre;
+static int proximo_fifo;
+static int usa_lru;
+static int tlb_pagina[TAMANHO_TLB];
+static int tlb_frame[TAMANHO_TLB];
+static unsigned long tlb_uso[TAMANHO_TLB];
+static int tlb_acerto[TAMANHO_TLB];
+static int tlb_proximo;
+static int tlb_usa_lru;
 
-struct search_arg {
+struct argumento_busca {
     int slot;
-    int page;
+    int pagina;
 };
-static long page_faults;
-static long tlb_hits;
+static long faltas_pagina;
+static long acertos_tlb;
 static FILE *backing_store;
 
-static int valid_algorithm(const char *s)
+static int algoritmo_valido(const char *texto)
 {
-    return strcmp(s, "fifo") == 0 || strcmp(s, "lru") == 0;
+    return strcmp(texto, "fifo") == 0 || strcmp(texto, "lru") == 0;
 }
 
-static int parse_address(const char *line, long *out)
+static int interpretar_endereco(const char *linha, long *saida)
 {
-    char *end;
-    long v;
+    char *fim;
+    long valor;
 
-    while (isspace((unsigned char)*line))
-        line++;
-    if (!isdigit((unsigned char)*line))
+    while (isspace((unsigned char)*linha))
+        linha++;
+    if (!isdigit((unsigned char)*linha))
         return 0;
-    v = strtol(line, &end, 10);
-    while (isspace((unsigned char)*end))
-        end++;
-    if (*end != '\0' || v > MAX_ADDRESS)
+    valor = strtol(linha, &fim, 10);
+    while (isspace((unsigned char)*fim))
+        fim++;
+    if (*fim != '\0' || valor > ENDERECO_MAXIMO)
         return 0;
-    *out = v;
+    *saida = valor;
     return 1;
 }
 
-static int validate_address_file(const char *path)
+static int validar_arquivo_enderecos(const char *caminho)
 {
-    FILE *f = fopen(path, "r");
-    char line[64];
-    long v;
-    long count = 0;
+    FILE *arquivo = fopen(caminho, "r");
+    char linha[64];
+    long valor;
+    long contagem = 0;
 
-    if (f == NULL) {
-        fprintf(stderr, "Erro: nao foi possivel abrir o arquivo de enderecos '%s'\n", path);
+    if (arquivo == NULL) {
+        fprintf(stderr, "Erro: nao foi possivel abrir o arquivo de enderecos '%s'\n", caminho);
         return 0;
     }
-    while (fgets(line, sizeof line, f) != NULL) {
-        count++;
-        if ((strchr(line, '\n') == NULL && !feof(f)) || !parse_address(line, &v)) {
+    while (fgets(linha, sizeof linha, arquivo) != NULL) {
+        contagem++;
+        if ((strchr(linha, '\n') == NULL && !feof(arquivo)) || !interpretar_endereco(linha, &valor)) {
             fprintf(stderr, "Erro: linha %ld de '%s' fora do formato (esperado um inteiro de 0 a %d)\n",
-                    count, path, MAX_ADDRESS);
-            fclose(f);
+                    contagem, caminho, ENDERECO_MAXIMO);
+            fclose(arquivo);
             return 0;
         }
     }
-    fclose(f);
-    if (count == 0) {
-        fprintf(stderr, "Erro: o arquivo '%s' nao contem enderecos\n", path);
+    fclose(arquivo);
+    if (contagem == 0) {
+        fprintf(stderr, "Erro: o arquivo '%s' nao contem enderecos\n", caminho);
         return 0;
     }
     return 1;
 }
 
-static int load_page(int page, int frame)
+static int carregar_pagina(int pagina, int frame)
 {
-    if (fseek(backing_store, (long)page * PAGE_SIZE, SEEK_SET) != 0)
+    if (fseek(backing_store, (long)pagina * TAMANHO_PAGINA, SEEK_SET) != 0)
         return 0;
-    return fread(&memory[frame * PAGE_SIZE], 1, PAGE_SIZE, backing_store) == PAGE_SIZE;
+    return fread(&memoria[frame * TAMANHO_PAGINA], 1, TAMANHO_PAGINA, backing_store) == TAMANHO_PAGINA;
 }
 
-static int lru_frame(void)
+static int frame_lru(void)
 {
-    int frame, victim = 0;
+    int frame, vitima = 0;
 
     for (frame = 1; frame < NUM_FRAMES; frame++)
-        if (frame_used[frame] < frame_used[victim])
-            victim = frame;
-    return victim;
+        if (uso_frame[frame] < uso_frame[vitima])
+            vitima = frame;
+    return vitima;
 }
 
-static int select_frame(void)
+static int selecionar_frame(void)
 {
     int frame, i;
 
-    if (next_frame < NUM_FRAMES)
-        return next_frame++;
-    if (use_lru) {
-        frame = lru_frame();
+    if (proximo_frame_livre < NUM_FRAMES)
+        return proximo_frame_livre++;
+    if (usa_lru) {
+        frame = frame_lru();
     } else {
-        frame = fifo_next;
-        fifo_next = (fifo_next + 1) % NUM_FRAMES;
+        frame = proximo_fifo;
+        proximo_fifo = (proximo_fifo + 1) % NUM_FRAMES;
     }
-    page_table[frame_page[frame]] = -1;
-    for (i = 0; i < TLB_SIZE; i++)
-        if (tlb_page[i] == frame_page[frame]) {
-            tlb_page[i] = -1;
-            tlb_used[i] = 0;
+    tabela_paginas[pagina_do_frame[frame]] = -1;
+    for (i = 0; i < TAMANHO_TLB; i++)
+        if (tlb_pagina[i] == pagina_do_frame[frame]) {
+            tlb_pagina[i] = -1;
+            tlb_uso[i] = 0;
         }
     return frame;
 }
 
-static void *tlb_search_slot(void *p)
+static void *tlb_buscar_slot(void *parametro)
 {
-    struct search_arg *arg = p;
+    struct argumento_busca *argumento = parametro;
 
-    tlb_match[arg->slot] = tlb_page[arg->slot] == arg->page;
+    tlb_acerto[argumento->slot] = tlb_pagina[argumento->slot] == argumento->pagina;
     return NULL;
 }
 
-static int tlb_lookup(int page)
+static int tlb_consultar(int pagina)
 {
-    pthread_t threads[TLB_SIZE];
-    struct search_arg args[TLB_SIZE];
-    int started[TLB_SIZE];
+    pthread_t threads[TAMANHO_TLB];
+    struct argumento_busca argumentos[TAMANHO_TLB];
+    int iniciada[TAMANHO_TLB];
     int i;
 
-    for (i = 0; i < TLB_SIZE; i++) {
-        args[i].slot = i;
-        args[i].page = page;
-        started[i] = pthread_create(&threads[i], NULL, tlb_search_slot, &args[i]) == 0;
-        if (!started[i])
-            tlb_search_slot(&args[i]);
+    for (i = 0; i < TAMANHO_TLB; i++) {
+        argumentos[i].slot = i;
+        argumentos[i].pagina = pagina;
+        iniciada[i] = pthread_create(&threads[i], NULL, tlb_buscar_slot, &argumentos[i]) == 0;
+        if (!iniciada[i])
+            tlb_buscar_slot(&argumentos[i]);
     }
-    for (i = 0; i < TLB_SIZE; i++)
-        if (started[i])
+    for (i = 0; i < TAMANHO_TLB; i++)
+        if (iniciada[i])
             pthread_join(threads[i], NULL);
-    for (i = 0; i < TLB_SIZE; i++)
-        if (tlb_match[i])
+    for (i = 0; i < TAMANHO_TLB; i++)
+        if (tlb_acerto[i])
             return i;
     return -1;
 }
 
-static int tlb_lru_slot(void)
+static int tlb_slot_lru(void)
 {
-    int i, victim = 0;
+    int i, vitima = 0;
 
-    for (i = 1; i < TLB_SIZE; i++)
-        if (tlb_used[i] < tlb_used[victim])
-            victim = i;
-    return victim;
+    for (i = 1; i < TAMANHO_TLB; i++)
+        if (tlb_uso[i] < tlb_uso[vitima])
+            vitima = i;
+    return vitima;
 }
 
-static int tlb_insert(int page, int frame)
+static int tlb_inserir(int pagina, int frame)
 {
     int slot;
 
-    if (use_tlb_lru) {
-        slot = tlb_lru_slot();
+    if (tlb_usa_lru) {
+        slot = tlb_slot_lru();
     } else {
-        slot = tlb_next;
-        tlb_next = (tlb_next + 1) % TLB_SIZE;
+        slot = tlb_proximo;
+        tlb_proximo = (tlb_proximo + 1) % TAMANHO_TLB;
     }
-    tlb_page[slot] = page;
+    tlb_pagina[slot] = pagina;
     tlb_frame[slot] = frame;
     return slot;
 }
 
-static int translate_address(long address, int *tlb_slot, int *physical, signed char *value)
+static int traduzir_endereco(long endereco, int *slot_tlb, int *fisico, signed char *valor)
 {
-    int page = address / PAGE_SIZE;
-    int offset = address % PAGE_SIZE;
+    int pagina = endereco / TAMANHO_PAGINA;
+    int deslocamento = endereco % TAMANHO_PAGINA;
     int frame, slot;
 
-    slot = tlb_lookup(page);
+    slot = tlb_consultar(pagina);
     if (slot >= 0) {
-        tlb_hits++;
+        acertos_tlb++;
         frame = tlb_frame[slot];
     } else {
-        if (page_table[page] == -1) {
-            page_faults++;
-            frame = select_frame();
-            if (!load_page(page, frame))
+        if (tabela_paginas[pagina] == -1) {
+            faltas_pagina++;
+            frame = selecionar_frame();
+            if (!carregar_pagina(pagina, frame))
                 return 0;
-            page_table[page] = frame;
-            frame_page[frame] = page;
+            tabela_paginas[pagina] = frame;
+            pagina_do_frame[frame] = pagina;
         }
-        frame = page_table[page];
-        slot = tlb_insert(page, frame);
+        frame = tabela_paginas[pagina];
+        slot = tlb_inserir(pagina, frame);
     }
-    frame_used[frame] = ++tick;
-    tlb_used[slot] = tick;
-    *tlb_slot = slot;
-    *physical = frame * PAGE_SIZE + offset;
-    *value = memory[*physical];
+    uso_frame[frame] = ++relogio;
+    tlb_uso[slot] = relogio;
+    *slot_tlb = slot;
+    *fisico = frame * TAMANHO_PAGINA + deslocamento;
+    *valor = memoria[*fisico];
     return 1;
 }
 
 int main(int argc, char **argv)
 {
-    FILE *f, *out;
-    char line[64];
-    long address, total = 0;
-    int physical, slot, i;
-    signed char value;
+    FILE *arquivo_enderecos, *saida;
+    char linha[64];
+    long endereco, total = 0;
+    int fisico, slot, i;
+    signed char valor;
 
     if (argc != 4) {
         fprintf(stderr, "Erro: numero de argumentos incorreto\n");
         fprintf(stderr, "Uso: %s <arquivo_enderecos> <fifo|lru> <fifo|lru>\n", argv[0]);
         return 1;
     }
-    if (!valid_algorithm(argv[2])) {
+    if (!algoritmo_valido(argv[2])) {
         fprintf(stderr, "Erro: algoritmo de substituicao de pagina deve ser fifo ou lru\n");
         return 1;
     }
-    if (!valid_algorithm(argv[3])) {
+    if (!algoritmo_valido(argv[3])) {
         fprintf(stderr, "Erro: algoritmo de substituicao da TLB deve ser fifo ou lru\n");
         return 1;
     }
-    if (!validate_address_file(argv[1]))
+    if (!validar_arquivo_enderecos(argv[1]))
         return 1;
-    backing_store = fopen(BACKING_STORE_FILE, "rb");
+    backing_store = fopen(ARQUIVO_BACKING_STORE, "rb");
     if (backing_store == NULL) {
-        fprintf(stderr, "Erro: nao foi possivel abrir '%s'\n", BACKING_STORE_FILE);
+        fprintf(stderr, "Erro: nao foi possivel abrir '%s'\n", ARQUIVO_BACKING_STORE);
         return 1;
     }
-    use_lru = strcmp(argv[2], "lru") == 0;
-    use_tlb_lru = strcmp(argv[3], "lru") == 0;
-    for (i = 0; i < NUM_PAGES; i++)
-        page_table[i] = -1;
-    for (i = 0; i < TLB_SIZE; i++)
-        tlb_page[i] = -1;
-    out = fopen(OUTPUT_FILE, "w");
-    if (out == NULL) {
-        fprintf(stderr, "Erro: nao foi possivel criar '%s'\n", OUTPUT_FILE);
+    usa_lru = strcmp(argv[2], "lru") == 0;
+    tlb_usa_lru = strcmp(argv[3], "lru") == 0;
+    for (i = 0; i < NUM_PAGINAS; i++)
+        tabela_paginas[i] = -1;
+    for (i = 0; i < TAMANHO_TLB; i++)
+        tlb_pagina[i] = -1;
+    saida = fopen(ARQUIVO_SAIDA, "w");
+    if (saida == NULL) {
+        fprintf(stderr, "Erro: nao foi possivel criar '%s'\n", ARQUIVO_SAIDA);
         return 1;
     }
-    f = fopen(argv[1], "r");
-    while (fgets(line, sizeof line, f) != NULL) {
-        parse_address(line, &address);
-        if (!translate_address(address, &slot, &physical, &value)) {
-            fprintf(stderr, "Erro: falha ao ler '%s'\n", BACKING_STORE_FILE);
+    arquivo_enderecos = fopen(argv[1], "r");
+    while (fgets(linha, sizeof linha, arquivo_enderecos) != NULL) {
+        interpretar_endereco(linha, &endereco);
+        if (!traduzir_endereco(endereco, &slot, &fisico, &valor)) {
+            fprintf(stderr, "Erro: falha ao ler '%s'\n", ARQUIVO_BACKING_STORE);
             return 1;
         }
-        fprintf(out, "Virtual address: %ld TLB: %d Physical address: %d Value: %d\n",
-                address, slot, physical, value);
+        fprintf(saida, "Virtual address: %ld TLB: %d Physical address: %d Value: %d\n",
+                endereco, slot, fisico, valor);
         total++;
     }
-    fprintf(out, "Number of Translated Addresses = %ld\n", total);
-    fprintf(out, "Page Faults = %ld\n", page_faults);
-    fprintf(out, "Page Fault Rate = %.3f\n", (double)page_faults / total);
-    fprintf(out, "TLB Hits = %ld\n", tlb_hits);
-    fprintf(out, "TLB Hit Rate = %.3f\n", (double)tlb_hits / total);
-    fclose(out);
-    fclose(f);
+    fprintf(saida, "Number of Translated Addresses = %ld\n", total);
+    fprintf(saida, "Page Faults = %ld\n", faltas_pagina);
+    fprintf(saida, "Page Fault Rate = %.3f\n", (double)faltas_pagina / total);
+    fprintf(saida, "TLB Hits = %ld\n", acertos_tlb);
+    fprintf(saida, "TLB Hit Rate = %.3f\n", (double)acertos_tlb / total);
+    fclose(saida);
+    fclose(arquivo_enderecos);
     fclose(backing_store);
     return 0;
 }

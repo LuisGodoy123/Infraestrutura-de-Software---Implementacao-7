@@ -538,3 +538,45 @@ $ cd Infraestrutura-de-Software---Implementacao-7 && make clean
 rm -f vm main.o
 
 Validado: tests/ tem copias byte a byte dos arquivos do professor e, com elas, ./vm tests/addresses.txt lru fifo reproduz tests/correct_professor.txt exatamente; as outras tres combinacoes diferem, entao o fixture realmente confere o caso lru/fifo.
+
+=== Instrucao 11: nomes de funcoes e variaveis em portugues ===
+Objetivo: renomear identificadores do main.c para portugues do Brasil, sem alterar o comportamento. Os textos exigidos pelo PDF no correct.txt (Virtual address, TLB, Physical address, Value e as estatisticas) e as mensagens de erro continuam exatamente iguais. README atualizado com os novos nomes das funcoes.
+Obs: .gitignore e .gitattributes, que haviam sido criados nesta etapa, foram removidos: o PDF nao os pede.
+
+-- Renomeacao (funcoes) --
+valid_algorithm -> algoritmo_valido | parse_address -> interpretar_endereco | validate_address_file -> validar_arquivo_enderecos
+load_page -> carregar_pagina | lru_frame -> frame_lru | select_frame -> selecionar_frame
+tlb_search_slot -> tlb_buscar_slot | tlb_lookup -> tlb_consultar | tlb_lru_slot -> tlb_slot_lru | tlb_insert -> tlb_inserir
+translate_address -> traduzir_endereco | main -> main
+-- Renomeacao (constantes e variaveis globais) --
+MAX_ADDRESS -> ENDERECO_MAXIMO | PAGE_SIZE -> TAMANHO_PAGINA | NUM_PAGES -> NUM_PAGINAS | NUM_FRAMES (igual) | TLB_SIZE -> TAMANHO_TLB
+BACKING_STORE_FILE -> ARQUIVO_BACKING_STORE | OUTPUT_FILE -> ARQUIVO_SAIDA
+memory -> memoria | page_table -> tabela_paginas | frame_page -> pagina_do_frame | frame_used -> uso_frame | tick -> relogio
+next_frame -> proximo_frame_livre | fifo_next -> proximo_fifo | use_lru -> usa_lru | page_faults -> faltas_pagina | tlb_hits -> acertos_tlb
+tlb_page -> tlb_pagina | tlb_used -> tlb_uso | tlb_match -> tlb_acerto | tlb_next -> tlb_proximo | use_tlb_lru -> tlb_usa_lru | struct search_arg -> struct argumento_busca
+(variaveis locais e parametros tambem: line->linha, address->endereco, physical->fisico, value->valor, victim->vitima, offset->deslocamento etc.)
+
+-- Nenhum nome antigo restou no codigo nem no README --
+nomes antigos ainda presentes em main.c/README.md: nenhum (verificados: 31)
+
+-- README x funcoes de main.c --
+funcoes definidas em main.c: algoritmo_valido interpretar_endereco validar_arquivo_enderecos carregar_pagina frame_lru selecionar_frame tlb_buscar_slot tlb_consultar tlb_slot_lru tlb_inserir traduzir_endereco main 
+no codigo e ausentes do README: nenhuma; no README e ausentes do codigo: nenhuma
+
+$ make clean && make
+gcc -Wall -Wextra -pthread -c main.c
+gcc -Wall -Wextra -pthread -o vm main.o
+(sem warnings com -Wall -Wextra: 0 avisos)
+
+-- Comportamento identico ao do commit anterior (main.c em ingles, compilado em /tmp) --
+$ ./vm tests/addresses.txt lru fifo  e  cmp com tests/correct_professor.txt
+-> codigo 0 (0 = identico ao do professor)
+correct.txt novo x antigo: 0 diferencas em 28 execucoes (7 conjuntos de enderecos x 4 combinacoes fifo/lru)
+
+Mensagens de erro e codigos de saida, novo x antigo (stderr + codigo de saida comparados; cada binario roda como ./vm no seu proprio diretorio, porque a mensagem de uso imprime argv[0]):
+11 casos (argumentos incluindo a mensagem de uso, arquivo inexistente, linha em branco, arquivo vazio, linha invalida, fora da faixa e BACKING_STORE.bin ausente): 0 diferencas
+
+$ make clean
+rm -f vm main.o
+
+Validado: so nomes mudaram; o correct.txt e identico ao anterior em 28 execucoes e ao do professor, e as mensagens e codigos de erro sao os mesmos.

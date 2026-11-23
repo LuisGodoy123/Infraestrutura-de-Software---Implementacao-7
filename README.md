@@ -22,12 +22,12 @@ Desenvolvido no Windows 11, compilado e testado no WSL Ubuntu (gcc 15.2, GNU Mak
 
 Funções de `main.c`:
 
-- `valid_algorithm`, `parse_address`, `validate_address_file`: validação de argumentos e do arquivo de endereços.
-- `load_page`: lê uma página de 256 bytes do `BACKING_STORE.bin` para um frame.
-- `lru_frame`, `select_frame`: escolhem o frame (livre, FIFO ou LRU) em um page fault.
-- `tlb_search_slot`, `tlb_lookup`: busca na TLB com uma thread por slot, resultado em `tlb_match[slot]`.
-- `tlb_lru_slot`, `tlb_insert`: escolhem o slot (FIFO ou LRU) e inserem a entrada na TLB.
-- `translate_address`: TLB, tabela de páginas, page fault e cálculo do endereço físico e do valor.
+- `algoritmo_valido`, `interpretar_endereco`, `validar_arquivo_enderecos`: validação de argumentos e do arquivo de endereços.
+- `carregar_pagina`: lê uma página de 256 bytes do `BACKING_STORE.bin` para um frame.
+- `frame_lru`, `selecionar_frame`: escolhem o frame (livre, FIFO ou LRU) em um page fault.
+- `tlb_buscar_slot`, `tlb_consultar`: busca na TLB com uma thread por slot, resultado em `tlb_acerto[slot]`.
+- `tlb_slot_lru`, `tlb_inserir`: escolhem o slot (FIFO ou LRU) e inserem a entrada na TLB.
+- `traduzir_endereco`: TLB, tabela de páginas, page fault e cálculo do endereço físico e do valor.
 - `main`: lê os endereços e grava o `correct.txt` com as estatísticas.
 
 ## Compilar
