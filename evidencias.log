@@ -439,3 +439,64 @@ $ cd Infraestrutura-de-Software---Implementacao-7 && make clean
 rm -f vm main.o
 
 Validado: com 16 threads por busca (16000 criacoes para 1000 enderecos) o correct.txt e identico ao do professor e ao da versao sequencial em todas as combinacoes testadas, em 30 repeticoes, e sem avisos do ThreadSanitizer.
+
+=== Instrucao 9: README.md ===
+Objetivo: README curto com arquivos, como compilar/executar/testar e ambiente. Validacao: conferir que o README descreve o codigo real e que os comandos dele funcionam, executados em um diretorio limpo.
+
+-- Funcoes citadas no README x funcoes de main.c --
+funcoes definidas em main.c: valid_algorithm parse_address validate_address_file load_page lru_frame select_frame tlb_search_slot tlb_lookup tlb_lru_slot tlb_insert translate_address main 
+citadas na lista mas ausentes do README: nenhuma
+definidas no codigo mas ausentes do README: nenhuma
+numero de funcoes: codigo=12, lista do README=12
+
+-- Comandos do README em um diretorio limpo (so Makefile, main.c e os arquivos do professor) --
+$ ls
+BACKING_STORE.bin Makefile addresses.txt correct_professor.txt main.c 
+
+$ make
+gcc -Wall -Wextra -pthread -c main.c
+gcc -Wall -Wextra -pthread -o vm main.o
+
+$ ./vm addresses.txt lru fifo
+(codigo de saida: 0)
+
+$ cmp correct.txt correct_professor.txt
+(codigo: 0; sem saida = identicos)
+
+$ make clean
+rm -f vm main.o
+$ ls
+BACKING_STORE.bin Makefile addresses.txt correct.txt correct_professor.txt main.c 
+
+-- Erros listados no README (correct.txt nao e criado em nenhum) --
+$ ./vm addresses.txt lru
+Erro: numero de argumentos incorreto
+Uso: ./vm <arquivo_enderecos> <fifo|lru> <fifo|lru>
+(codigo de saida: 1; correct.txt ausente)
+$ ./vm addresses.txt lru fifo extra
+Erro: numero de argumentos incorreto
+Uso: ./vm <arquivo_enderecos> <fifo|lru> <fifo|lru>
+(codigo de saida: 1; correct.txt ausente)
+$ ./vm addresses.txt lfu fifo
+Erro: algoritmo de substituicao de pagina deve ser fifo ou lru
+(codigo de saida: 1; correct.txt ausente)
+$ ./vm addresses.txt lru clock
+Erro: algoritmo de substituicao da TLB deve ser fifo ou lru
+(codigo de saida: 1; correct.txt ausente)
+$ ./vm nao_existe.txt lru fifo
+Erro: nao foi possivel abrir o arquivo de enderecos 'nao_existe.txt'
+(codigo de saida: 1; correct.txt ausente)
+$ ./vm em_branco.txt lru fifo
+Erro: linha 2 de 'em_branco.txt' fora do formato (esperado um inteiro de 0 a 65535)
+(codigo de saida: 1; correct.txt ausente)
+$ ./vm vazio.txt lru fifo
+Erro: o arquivo 'vazio.txt' nao contem enderecos
+(codigo de saida: 1; correct.txt ausente)
+$ ./vm addresses.txt lru fifo
+Erro: nao foi possivel abrir 'BACKING_STORE.bin'
+(codigo de saida: 1; correct.txt ausente)
+
+-- O repositorio contem so os arquivos descritos no README --
+$ git ls-files -o -c --exclude-standard: Makefile README.md evidencias.log main.c 
+
+Validado: o README cita exatamente as funcoes de main.c e todos os comandos dele (make, ./vm, cmp, make clean e os casos de erro) funcionam em um diretorio limpo.
