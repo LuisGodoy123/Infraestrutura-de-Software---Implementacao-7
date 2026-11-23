@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <pthread.h>
 
 #define MAX_ADDRESS 65535
 #define PAGE_SIZE 256
@@ -22,8 +23,14 @@ static int use_lru;
 static int tlb_page[TLB_SIZE];
 static int tlb_frame[TLB_SIZE];
 static unsigned long tlb_used[TLB_SIZE];
+static int tlb_match[TLB_SIZE];
 static int tlb_next;
 static int use_tlb_lru;
+
+struct search_arg {
+    int slot;
+    int page;
+};
 static long page_faults;
 static long tlb_hits;
 static FILE *backing_store;
@@ -117,12 +124,33 @@ static int select_frame(void)
     return frame;
 }
 
+static void *tlb_search_slot(void *p)
+{
+    struct search_arg *arg = p;
+
+    tlb_match[arg->slot] = tlb_page[arg->slot] == arg->page;
+    return NULL;
+}
+
 static int tlb_lookup(int page)
 {
+    pthread_t threads[TLB_SIZE];
+    struct search_arg args[TLB_SIZE];
+    int started[TLB_SIZE];
     int i;
 
+    for (i = 0; i < TLB_SIZE; i++) {
+        args[i].slot = i;
+        args[i].page = page;
+        started[i] = pthread_create(&threads[i], NULL, tlb_search_slot, &args[i]) == 0;
+        if (!started[i])
+            tlb_search_slot(&args[i]);
+    }
     for (i = 0; i < TLB_SIZE; i++)
-        if (tlb_page[i] == page)
+        if (started[i])
+            pthread_join(threads[i], NULL);
+    for (i = 0; i < TLB_SIZE; i++)
+        if (tlb_match[i])
             return i;
     return -1;
 }

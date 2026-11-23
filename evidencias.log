@@ -368,3 +368,74 @@ $ cd Infraestrutura-de-Software---Implementacao-7 && make clean
 rm -f vm main.o
 
 Validado: tlb fifo segue identica ao correct.txt do professor; as 4 combinacoes fifo/lru x fifo/lru conferem com a simulacao independente em 8 conjuntos de enderecos; o algoritmo da TLB altera so a coluna TLB e os hits, nunca endereco fisico, Value ou page faults.
+
+=== Instrucao 8: busca na TLB com uma thread por entrada ===
+Objetivo: a cada traducao, tlb_lookup cria 16 pthreads (uma por slot); cada thread compara so o seu slot e grava o resultado em tlb_match[slot] (posicoes distintas, sem mutex); apos o join de todas, o slot com match define hit ou miss. Se pthread_create falhar para um slot, esse slot e conferido na propria thread principal. A logica e o estado da TLB (FIFO/LRU) nao mudam.
+Obs: baseline sequencial = main.c do ultimo commit (Instrucao 7), compilado em /tmp (fora do repositorio). Contador de pthread_create/pthread_join via LD_PRELOAD (cnt.c) e ThreadSanitizer tambem fora do repositorio.
+
+$ cd Infraestrutura-de-Software---Implementacao-7 && make
+gcc -Wall -Wextra -pthread -c main.c
+gcc -Wall -Wextra -pthread -o vm main.o
+
+-- Referencia do professor com threads --
+$ ./vm addresses.txt lru fifo (codigo de saida: 0)
+$ cmp correct.txt_gerado correct.txt_do_professor -> codigo 0 (0 = identicos: 1000 linhas, coluna TLB, 539 page faults, 54 TLB hits)
+
+-- As threads sao realmente usadas (LD_PRELOAD contando chamadas) --
+$ LD_PRELOAD=libcnt.so ./vm addresses.txt lru fifo
+pthread_create=16000 pthread_join=16000
+threads por slot: 1000 1000 1000 1000 1000 1000 1000 1000 1000 1000 1000 1000 1000 1000 1000 1000
+(esperado: 16 x 1000 enderecos = 16000 criacoes e 16000 joins, 1000 threads por slot)
+
+-- Repetibilidade: 30 execucoes com threads, todas identicas ao correct.txt do professor --
+execucoes identicas: 30 de 30
+
+-- Threads x busca sequencial: correct.txt identico nas 4 combinacoes e 7 conjuntos de enderecos --
+padrao        pag   tlb   enderecos faults  hits    cmp seq x threads
+e8_addresses  fifo  fifo  1000      538     54      codigo 0        
+e8_addresses  fifo  lru   1000      538     55      codigo 0        
+e8_addresses  lru   fifo  1000      539     54      codigo 0        
+e8_addresses  lru   lru   1000      539     55      codigo 0        
+e8_ciclico    fifo  fifo  768       768     0       codigo 0        
+e8_ciclico    fifo  lru   768       768     0       codigo 0        
+e8_ciclico    lru   fifo  768       768     0       codigo 0        
+e8_ciclico    lru   lru   768       768     0       codigo 0        
+e8_aleatorio  fifo  fifo  3000      1538    202     codigo 0        
+e8_aleatorio  fifo  lru   3000      1538    204     codigo 0        
+e8_aleatorio  lru   fifo  3000      1530    203     codigo 0        
+e8_aleatorio  lru   lru   3000      1530    203     codigo 0        
+e8_hot14      fifo  fifo  3840      298     2366    codigo 0        
+e8_hot14      fifo  lru   3840      298     3542    codigo 0        
+e8_hot14      lru   fifo  3840      270     2380    codigo 0        
+e8_hot14      lru   lru   3840      270     3570    codigo 0        
+e8_cabe       fifo  fifo  256       128     0       codigo 0        
+e8_cabe       fifo  lru   256       128     0       codigo 0        
+e8_cabe       lru   fifo  256       128     0       codigo 0        
+e8_cabe       lru   lru   256       128     0       codigo 0        
+e8_200pag     fifo  fifo  3000      1155    218     codigo 0        
+e8_200pag     fifo  lru   3000      1155    224     codigo 0        
+e8_200pag     lru   fifo  3000      1200    222     codigo 0        
+e8_200pag     lru   lru   3000      1200    225     codigo 0        
+e8_localidade fifo  fifo  4000      507     1958    codigo 0        
+e8_localidade fifo  lru   4000      507     2202    codigo 0        
+e8_localidade lru   fifo  4000      460     1962    codigo 0        
+e8_localidade lru   lru   4000      460     2202    codigo 0        
+(cmp codigo 0 = correct.txt da versao com threads identico ao da versao sequencial; 0 diferencas em 28 execucoes)
+
+-- ThreadSanitizer (corrida de dados) --
+$ gcc -fsanitize=thread ... && ./vm_tsan addresses.txt lru fifo (codigo de saida: 0)
+avisos 'WARNING: ThreadSanitizer' na saida: 0
+correct.txt do binario com tsan identico ao do professor: codigo 0
+
+-- Tempo (addresses.txt lru fifo, 5 execucoes cada; nao e parte da validacao, material para o relatorio) --
+sequencial: 0.072s 0.065s 0.051s 0.054s 0.061s
+com threads: 0.628s 0.625s 0.622s 0.650s 0.625s
+
+-- Erros anteriores continuam valendo --
+Erro: algoritmo de substituicao de pagina deve ser fifo ou lru
+$ ./vm addresses.txt lfu fifo (codigo de saida: 1; correct.txt ausente)
+
+$ cd Infraestrutura-de-Software---Implementacao-7 && make clean
+rm -f vm main.o
+
+Validado: com 16 threads por busca (16000 criacoes para 1000 enderecos) o correct.txt e identico ao do professor e ao da versao sequencial em todas as combinacoes testadas, em 30 repeticoes, e sem avisos do ThreadSanitizer.

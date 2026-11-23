@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra
+CFLAGS = -Wall -Wextra -pthread
 
 vm: main.o
 	$(CC) $(CFLAGS) -o vm main.o
