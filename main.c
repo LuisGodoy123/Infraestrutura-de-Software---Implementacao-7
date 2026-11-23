@@ -21,7 +21,9 @@ static int fifo_next;
 static int use_lru;
 static int tlb_page[TLB_SIZE];
 static int tlb_frame[TLB_SIZE];
+static unsigned long tlb_used[TLB_SIZE];
 static int tlb_next;
+static int use_tlb_lru;
 static long page_faults;
 static long tlb_hits;
 static FILE *backing_store;
@@ -108,8 +110,10 @@ static int select_frame(void)
     }
     page_table[frame_page[frame]] = -1;
     for (i = 0; i < TLB_SIZE; i++)
-        if (tlb_page[i] == frame_page[frame])
+        if (tlb_page[i] == frame_page[frame]) {
             tlb_page[i] = -1;
+            tlb_used[i] = 0;
+        }
     return frame;
 }
 
@@ -123,11 +127,26 @@ static int tlb_lookup(int page)
     return -1;
 }
 
+static int tlb_lru_slot(void)
+{
+    int i, victim = 0;
+
+    for (i = 1; i < TLB_SIZE; i++)
+        if (tlb_used[i] < tlb_used[victim])
+            victim = i;
+    return victim;
+}
+
 static int tlb_insert(int page, int frame)
 {
-    int slot = tlb_next;
+    int slot;
 
-    tlb_next = (tlb_next + 1) % TLB_SIZE;
+    if (use_tlb_lru) {
+        slot = tlb_lru_slot();
+    } else {
+        slot = tlb_next;
+        tlb_next = (tlb_next + 1) % TLB_SIZE;
+    }
     tlb_page[slot] = page;
     tlb_frame[slot] = frame;
     return slot;
@@ -156,6 +175,7 @@ static int translate_address(long address, int *tlb_slot, int *physical, signed 
         slot = tlb_insert(page, frame);
     }
     frame_used[frame] = ++tick;
+    tlb_used[slot] = tick;
     *tlb_slot = slot;
     *physical = frame * PAGE_SIZE + offset;
     *value = memory[*physical];
@@ -191,6 +211,7 @@ int main(int argc, char **argv)
         return 1;
     }
     use_lru = strcmp(argv[2], "lru") == 0;
+    use_tlb_lru = strcmp(argv[3], "lru") == 0;
     for (i = 0; i < NUM_PAGES; i++)
         page_table[i] = -1;
     for (i = 0; i < TLB_SIZE; i++)

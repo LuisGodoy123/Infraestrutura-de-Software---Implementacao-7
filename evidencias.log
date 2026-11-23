@@ -298,3 +298,73 @@ $ cd Infraestrutura-de-Software---Implementacao-7 && make clean
 rm -f vm main.o
 
 Validado: ./vm addresses.txt lru fifo gera correct.txt identico ao do professor (1000 linhas, coluna TLB, 539 page faults, 54 TLB hits); FIFO e LRU de pagina com TLB FIFO conferem com a simulacao independente em 6 padroes; erros nao criam correct.txt.
+
+=== Instrucao 7: substituicao LRU da TLB ===
+Objetivo: o 3o argumento (fifo|lru) escolhe a vitima na TLB: fifo = slot inserido ha mais tempo (ponteiro circular); lru = slot com ultimo acesso (hit ou insercao) mais antigo; slot livre (inicial ou invalidado) e usado primeiro, do menor indice.
+Obs: nao ha referencia do professor para LRU na TLB; a verificacao e feita contra simfull2.py, simulacao independente (pagina + TLB) fora do repositorio. O caso fifo na TLB continua sendo conferido contra o correct.txt do professor.
+
+$ cd Infraestrutura-de-Software---Implementacao-7 && make
+gcc -Wall -Wextra -c main.c
+gcc -Wall -Wextra -o vm main.o
+
+-- Regressao: TLB fifo continua igual ao correct.txt do professor --
+$ ./vm addresses.txt lru fifo (codigo de saida: 0)
+$ cmp correct.txt_gerado correct.txt_do_professor -> codigo 0 (0 = identicos)
+
+-- Quatro combinacoes no addresses.txt do professor --
+pag    tlb    faults   tlb hits  hit rate       cmp com sim 
+fifo   fifo   538      54        0.054          codigo 0    
+fifo   lru    538      55        0.055          codigo 0    
+lru    fifo   539      54        0.054          codigo 0    
+lru    lru    539      55        0.055          codigo 0    
+
+Page faults nao dependem do algoritmo da TLB (mesmo pag, tlb diferente):
+  pag=fifo: 538 (tlb fifo) e 538 (tlb lru)
+  pag=lru: 539 (tlb fifo) e 539 (tlb lru)
+Enderecos fisicos e Values nao dependem do algoritmo da TLB (pag=lru): 0 linhas diferentes
+Coluna TLB (pag=lru, tlb fifo vs tlb lru): 462 linhas diferentes (a escolha do slot muda, o frame nao)
+
+-- Primeiros slots com tlb lru (sem entradas usadas, ocupa 0,1,2,... em ordem) --
+$ ./vm addresses.txt lru lru  (coluna TLB das 18 primeiras linhas): 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 0 1 
+linha 17 (32865) cai no slot 0: o LRU, igual ao FIFO ate aqui, reutiliza o slot 0, o mais antigo
+
+-- Varios padroes de acesso: vm contra simulacao (4 combinacoes cada) --
+padrao        pag   tlb   enderecos faults  hits    cmp com sim 
+e7_ciclico    fifo  fifo  768       768     0       codigo 0    
+e7_ciclico    fifo  lru   768       768     0       codigo 0    
+e7_ciclico    lru   fifo  768       768     0       codigo 0    
+e7_ciclico    lru   lru   768       768     0       codigo 0    
+e7_aleatorio  fifo  fifo  3000      1538    202     codigo 0    
+e7_aleatorio  fifo  lru   3000      1538    204     codigo 0    
+e7_aleatorio  lru   fifo  3000      1530    203     codigo 0    
+e7_aleatorio  lru   lru   3000      1530    203     codigo 0    
+e7_hot10      fifo  fifo  2816      276     2210    codigo 0    
+e7_hot10      fifo  lru   2816      276     2540    codigo 0    
+e7_hot10      lru   fifo  2816      256     2210    codigo 0    
+e7_hot10      lru   lru   2816      256     2560    codigo 0    
+e7_hot14      fifo  fifo  3840      298     2366    codigo 0    
+e7_hot14      fifo  lru   3840      298     3542    codigo 0    
+e7_hot14      lru   fifo  3840      270     2380    codigo 0    
+e7_hot14      lru   lru   3840      270     3570    codigo 0    
+e7_cabe       fifo  fifo  256       128     0       codigo 0    
+e7_cabe       fifo  lru   256       128     0       codigo 0    
+e7_cabe       lru   fifo  256       128     0       codigo 0    
+e7_cabe       lru   lru   256       128     0       codigo 0    
+e7_200pag     fifo  fifo  3000      1155    218     codigo 0    
+e7_200pag     fifo  lru   3000      1155    224     codigo 0    
+e7_200pag     lru   fifo  3000      1200    222     codigo 0    
+e7_200pag     lru   lru   3000      1200    225     codigo 0    
+e7_localidade fifo  fifo  4000      507     1958    codigo 0    
+e7_localidade fifo  lru   4000      507     2202    codigo 0    
+e7_localidade lru   fifo  4000      460     1962    codigo 0    
+e7_localidade lru   lru   4000      460     2202    codigo 0    
+(faults e hits lidos do correct.txt gerado pelo vm; cmp codigo 0 = correct.txt identico ao da simulacao)
+
+-- Erros anteriores continuam valendo --
+Erro: algoritmo de substituicao da TLB deve ser fifo ou lru
+$ ./vm addresses.txt lru clock (codigo de saida: 1; correct.txt ausente)
+
+$ cd Infraestrutura-de-Software---Implementacao-7 && make clean
+rm -f vm main.o
+
+Validado: tlb fifo segue identica ao correct.txt do professor; as 4 combinacoes fifo/lru x fifo/lru conferem com a simulacao independente em 8 conjuntos de enderecos; o algoritmo da TLB altera so a coluna TLB e os hits, nunca endereco fisico, Value ou page faults.
