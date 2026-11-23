@@ -580,3 +580,39 @@ $ make clean
 rm -f vm main.o
 
 Validado: so nomes mudaram; o correct.txt e identico ao anterior em 28 execucoes e ao do professor, e as mensagens e codigos de erro sao os mesmos.
+
+=== Instrucao 12: lagi.tar ===
+Objetivo: gerar o lagi.tar da entrega no Classroom. Pelo PDF, o diretorio compactado contem so o codigo e o Makefile (nao leva evidencias.log, README, tests/ nem os arquivos do professor). Os arquivos sao extraidos do commit (git show HEAD:...), com fim de linha LF, e o tar fica em Desktop/lagi/lagi.tar, fora do repositorio.
+
+$ tar -cf lagi.tar lagi
+$ tar -tvf lagi.tar
+drwxr-xr-x 0 lagi/
+-rw-r--r-- 166 lagi/Makefile
+-rw-r--r-- 7847 lagi/main.c
+
+bytes CR (CRLF) nos arquivos do tar: main.c=0 Makefile=0
+main.c do tar identico ao do commit: sim
+Makefile do tar identico ao do commit: sim
+nome do arquivo: lagi.tar | diretorio dentro do tar: lagi/
+
+-- Teste do tar: extrair em diretorio limpo, make, executar --
+$ tar -xf lagi.tar && cd lagi && make
+gcc -Wall -Wextra -pthread -c main.c
+gcc -Wall -Wextra -pthread -o vm main.o
+(avisos de compilacao: 0)
+executavel vm gerado: sim
+
+$ ./vm addresses.txt lru fifo  (addresses.txt e BACKING_STORE.bin do professor copiados para o diretorio extraido)
+codigo de saida: 0
+cmp correct.txt com o do professor -> codigo 0 (0 = identico)
+Number of Translated Addresses = 1000
+Page Faults = 539
+Page Fault Rate = 0.539
+TLB Hits = 54
+TLB Hit Rate = 0.054
+
+$ make clean
+rm -f vm main.o
+arquivos restantes no diretorio extraido apos make clean: BACKING_STORE.bin Makefile addresses.txt correct.txt main.c 
+
+Validado: lagi.tar contem apenas lagi/main.c e lagi/Makefile (iguais aos do commit); extraido em diretorio limpo, compila com make sem avisos e gera o correct.txt identico ao do professor.
