@@ -670,3 +670,31 @@ threads por slot: 1000 1000 1000 1000 1000 1000 1000 1000 1000 1000 1000 1000 10
 correct.txt identico ao do professor
 
 Validado: analise comparativa com dados medidos nesta etapa; threads e sequencial produzem correct.txt identico; so o tempo muda.
+
+=== Instrucao 14: README.md atualizado ===
+Objetivo: o README passa a listar o lagi.pdf (relatorio) e a pasta tests/, a dizer que BACKING_STORE.bin e lagi.tar ficam fora do repositorio, e a secao Testar passa a usar os arquivos de tests/ em um diretorio fora do repositorio (o programa grava o correct.txt no diretorio atual).
+Obs: o lagi.pdf e gerado do relatorio em Word e adicionado ao repositorio a parte; esta entrada nao o verifica.
+
+-- Arquivos citados na tabela do README x conteudo do repositorio --
+Makefile: existe
+main.c: existe
+evidencias.log: existe
+README.md: existe
+tests: existe
+tests/ contem: addresses.txt correct_professor.txt 
+(lagi.pdf: ainda nao esta no repositorio)
+
+-- Funcoes citadas no README x funcoes de main.c --
+funcoes definidas em main.c: algoritmo_valido interpretar_endereco validar_arquivo_enderecos carregar_pagina frame_lru selecionar_frame tlb_buscar_slot tlb_consultar tlb_slot_lru tlb_inserir traduzir_endereco main 
+no codigo e ausentes do README: nenhuma
+
+-- Comandos da secao Testar, em copia limpa do repositorio (so os arquivos do README), a partir de /tmp --
+$ R=$PWD; make
+gcc -Wall -Wextra -pthread -c main.c
+gcc -Wall -Wextra -pthread -o vm main.o
+$ mkdir -p /tmp/teste && cd /tmp/teste && cp BACKING_STORE.bin .
+$ $R/vm $R/tests/addresses.txt lru fifo (codigo de saida: 0)
+$ cmp correct.txt $R/tests/correct_professor.txt (codigo: 0; 0 = sem saida, identicos)
+correct.txt criado no diretorio de teste, nao no repositorio copiado: sim
+
+Validado: o README cita todas as funcoes de main.c e os arquivos que o repositorio tem; os comandos da secao Testar funcionam a partir da copia limpa e o correct.txt gerado e identico ao do professor.

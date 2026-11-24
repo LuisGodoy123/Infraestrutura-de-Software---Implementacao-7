@@ -19,6 +19,10 @@ Desenvolvido no Windows 11, compilado e testado no WSL Ubuntu (gcc 15.2, GNU Mak
 | `main.c` | Todo o código (funções abaixo). |
 | `evidencias.log` | Comandos e saídas reais dos testes de cada etapa do desenvolvimento. |
 | `README.md` | Este arquivo. |
+| `lagi.pdf` | Relatório: requisitos, arquitetura, diário, análise comparativa (FIFO × LRU e busca sequencial × threads) e evidências. |
+| `tests/` | `addresses.txt` e `correct_professor.txt` (o `correct.txt` do professor, com outro nome), cópias dos arquivos dele. |
+
+O `BACKING_STORE.bin` (do professor) não faz parte do repositório. O `lagi.tar` (`lagi/main.c` e `lagi/Makefile`) é a entrega do Classroom e também fica fora dele.
 
 Funções de `main.c`:
 
@@ -85,12 +89,15 @@ Também encerra com erro se o `BACKING_STORE.bin` não puder ser aberto.
 
 ## Testar
 
-Com o `addresses.txt` e o `correct.txt` do professor (que usa `lru` na página e `fifo` na TLB) e o `BACKING_STORE.bin` no mesmo diretório do `vm`:
+O programa lê o `BACKING_STORE.bin` e grava o `correct.txt` no diretório atual, então o teste roda em um diretório fora do repositório. Com os arquivos de `tests/` (o `correct_professor.txt` usa `lru` na página e `fifo` na TLB):
 
 ```
+R=$PWD
 make
-./vm addresses.txt lru fifo
-cmp correct.txt correct_professor.txt
+mkdir -p /tmp/teste && cd /tmp/teste
+cp /caminho/do/BACKING_STORE.bin .
+$R/vm $R/tests/addresses.txt lru fifo
+cmp correct.txt $R/tests/correct_professor.txt
 ```
 
-(`correct_professor.txt` é a cópia do `correct.txt` do professor, guardada com outro nome para não ser sobrescrita.) O `cmp` não deve imprimir nada. Todos os testes realizados estão em `evidencias.log`.
+O `cmp` não deve imprimir nada (arquivos idênticos). Todos os testes realizados estão em `evidencias.log`.
